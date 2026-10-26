@@ -21,4 +21,5 @@ Seeing as each sample was sequenced over multiple lanes, each sample has multipl
 If each sample only had one pair of fastq files we could skip step 3. If we had sequenced the deer with PacBio or Nanopore we'd use `minimap2` as the aligner rather than `minibwa`.
 
 ## 03 Variant calling
+We are performing calling using the bcftools package. For variant calling we create a 'pileup' using `bcftools mpileup` which is piped into `bcftools call` for variant calling. By default `bcftools` treats all chromosomes as diploid in all samples. To change this for the PAR and the mitochondria we need to provide a `--ploidy-file` which the coordinates of chromosomes where the ploidy deviates from 2, what the ploidy is acrosss that region, and which sex it deviates in; and a `--samples-file` outlining the sex of each sample. Seeing as we're calling each chromosome in a seperate script we don't need to provide these when calling the autosomes.
 
