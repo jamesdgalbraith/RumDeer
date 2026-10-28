@@ -36,10 +36,10 @@ ls *bam > bam_list.txt
 echo "Starting "$SAMPLE" bcftools"
 bcftools mpileup --threads ${THREADS} -Ou -f ${GENOME} -g 0,5,10,20,40 -a DP --max-depth 100 --min-MQ 30 \
     -b bam_list.txt -R ${BED_DIR}/${SAMPLE}.bed | \
-    bcftools call --threads ${THREADS} -m -g 0,5,10,20,40 --write-index \
+    bcftools call --threads ${THREADS} -m -g 0,5,10,20,40 \
+    -Oz -o ${OUT_DIR}/${SAMPLE}.mpileup.gvcf.gz --write-index
     # --ploidy-file ${DATA_DIR}/ploidy_file.txt \
     # --samples-file ${DATA_DIR}/sample_sex.tsv \
-    -Oz -o ${OUT_DIR}/${SAMPLE}.mpileup.gvcf.gz
 
 rm -r $SCRATCH
 
