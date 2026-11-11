@@ -6,9 +6,16 @@ In chromosomal assemblies which contain both sex chromosomes it's necessary to c
 
 As reference genome papers might not include details about the PAR, we'd first check if it's on both sex chromosomes by aligning them to each other using [D-GENIES](https://dgenies.toulouse.inra.fr/) (run locally). The reindeer and sheep variant calling has more detailed descriptions of this. In the sheep both sex chromosomes contained the PAR, while in the reindeer only the X did.
 
+### Approach 1
 If the PAR's not present on both sex chromosomes, it's normally present on the Z/X. Examining read coverage/depth across the Z/X in a male/female (respecitvely) enables us to determine where the PAR begins/ends. In the case of the red deer, the reference genome doesn't contain the Y chromosome, so this step will also help us determine if the PAR is on the X (I expect it will be).
 
-To deteremine the rough boundaries of the PAR we'll look at read coverage of a male across the X chromosome, calculating read depth across the smallest autosome and X chromosome with `samtools depth` and finding where coverage drops to half on the X chromosome and heterozygous SNPs are no longer present.
+To determine the rough boundaries of the PAR we'll look at read coverage of a male across the X chromosome, calculating read depth across the smallest autosome and X chromosome with `samtools depth` and finding where coverage drops to half on the X chromosome and heterozygous SNPs are no longer present.
+
+### Approach 2
+The second approach I've tried is to use the flanking sequences of the SNPs to look for the actual coordinate of each known PAR SNP using BLAST (for the entire method see (this script)[01_par_check/scripts/par_snps_flank.R] ). Unfortunately, rather than recovering the SNPs positions I've instead found that
+- While the genome sequence found between the flanks using BLAST matches either the reference or alternative of the that in the (DeerSNPSeq.txt)[01_par_check/data/Deer_SNP_FASTA/1_DeerSNPSeq.fa]...
+- ...it does not match the sequence included in the PLINK `.bim` file
+As a result I'm using the above coordinates of the PAR as a rough guide, and will examine the alignment of males to the X chromosome in IGV to see where coverage drops by half and heterozygous SNPs are no longer present.
 
 ## 02 Read alignment
 Seeing as each sample was sequenced over multiple lanes, each sample has multiple paired read fastq files. For sample we're:
