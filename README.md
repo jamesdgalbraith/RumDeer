@@ -17,6 +17,10 @@ The second approach I've tried is to use the flanking sequences of the SNPs to l
 - ...it does not match the sequence included in the PLINK `.bim` file
 As a result I'm using the above coordinates of the PAR as a rough guide, and will examine the alignment of males to the X chromosome in IGV to see where coverage drops by half and heterozygous SNPs are no longer present.
 
+From scrolling through in IGV coverage doubles and heterozygous SNPs first appear at ~165,850,000bp on chromosome X (NC_057848.1):
+![Coverage in all samples doubles and heterozygous SNPs appear in all 5 samples at ~165Mbp](data/IGV_screenshot_chr_X.png)
+Based on this the PAR will be defined as 165,850,000 - 179,953,079.
+
 ## 02 Read alignment
 Seeing as each sample was sequenced over multiple lanes, each sample has multiple paired read fastq files. For sample we're:
 
