@@ -7,10 +7,18 @@ deer_seq <- Biostrings::readDNAStringSet("/mnt/loki/johnston/rumdeer/james/data/
 names(deer_seq) <- sub(" .*", "", names(deer_seq))
 
 # read in bim and pseudoautosomal snps
-all_bim_snps <- read_tsv("/mnt/loki/johnston/rumdeer/james/data/20240927_Deer_1to43_mCelEla1.bim", col_names = c("chr_no", "Locus_Name", "cm", "start_20240927", "ref", "alt"))
+all_bim_snps <- read_tsv("/mnt/loki/johnston/rumdeer/james/data/20240927_Deer_1to43_mCelEla1.bim", col_names = c("chr_no", "Locus_Name", "cm", "start_20240927", "bim_ref", "bim_alt"))
 
 # read in all snps and flanks
-snps_flanks <- read_table("/mnt/loki/johnston/rumdeer/james/01_par_check/data/Deer_SNP_FASTA/3_DeerSequences.txt")
+# originally used "/mnt/loki/johnston/rumdeer/james/01_par_check/data/Deer_SNP_FASTA/3_DeerSequences.txt"
+snps_flanks_old <- read_table("/mnt/loki/johnston/rumdeer/james/01_par_check/data/Deer_SNP_FASTA/3_DeerSequences.txt")
+snps_flanks <- read_csv("/mnt/loki/johnston/rumdeer/james/01_par_check/data/CervusSNP50_UniEdinburgh_11668031_A_edit.csv.gz")
+
+# rename and select columns to fit old column names
+snps_flanks <- snps_flanks |>
+    dplyr::mutate(Locus_Name = sub("-.*", "", IlmnID)) |>
+    dplyr::select(Locus_Name, SourceSeq, SNP) |>
+    dplyr::rename(Sequence = SourceSeq)
 
 # read in par snps
 par_snps <- read_table("/mnt/loki/johnston/rumdeer/james/data/PseudoAutosomalSNPs.txt", col_names = "Locus_Name")
@@ -21,10 +29,10 @@ all_snps_flanks <- snps_flanks |>
            right_flank_seq = sub(".*\\]", "", Sequence))
 
 all_snps_from_snp_data <- snps_flanks |>
-    mutate(snp_data_ref = sub("\\].*", "", sub(".*\\[", "", Sequence)),
-           snp_data_alt = sub(".*/", "", snp_data_ref),
-           snp_data_ref = sub("/.*", "", snp_data_ref)) |>
-    dplyr::select(Locus_Name, snp_data_ref, snp_data_alt)
+    mutate(snp_ref = sub("\\].*", "", sub(".*\\[", "", Sequence)),
+           snp_alt = sub(".*/", "", snp_ref),
+           snp_ref = sub("/.*", "", snp_ref)) |>
+    dplyr::select(Locus_Name, snp_ref, snp_alt)
 
 # get flank seq as Biostings
 left_flank_seq <- DNAStringSet(all_snps_flanks$left_flank_seq)
@@ -87,16 +95,30 @@ joined_blast_hits <- inner_join(left_flank_blast, right_flank_blast, by = "qseqi
     mutate(distance = end-start)
     # dplyr::select(qseqid, seqnames, start, end, strand, distance)
 
-multiple_hits <- joined_blast_hits |>
+multiple_hits_qseqid <- joined_blast_hits |>
                  count(qseqid) |>
                  filter(n>1)
 
-multiple_hits_resolved <- joined_blast_hits |>
-    filter(qseqid %in% multiple_hits$qseqid,
+multiple_hits <- joined_blast_hits |>
+    filter(qseqid %in% multiple_hits_qseqid$qseqid,
            distance == 2) |>
     dplyr::mutate(snp_pos = start + 1) |>
     dplyr::select(qseqid, seqnames, snp_pos, start, end, strand)
 
+multiple_hits_resolved_qseqid <- multiple_hits |>
+    count(qseqid) |>
+    filter(n == 1)
+
+multiple_hits_resolved <- multiple_hits |>
+    filter(qseqid %in% multiple_hits_resolved_qseqid$qseqid)
+
+# get unresolved with multiple hits
+multiple_hits_unresolved <- joined_blast_hits |>
+    filter(qseqid %in% multiple_hits_qseqid$qseqid,
+           distance == 2,
+           !qseqid %in% multiple_hits_resolved_qseqid$qseqid)
+
+# get single hits resolved easily
 single_hits_resolved <- joined_blast_hits |>
     filter(!qseqid %in% multiple_hits$qseqid) |>
     filter(distance == 2) |>
@@ -117,35 +139,45 @@ compiled_resolved_hits <- single_hits_resolved |>
     rbind(resolvable_joined_blast_single_hits) |>
     dplyr::rename(Locus_Name = qseqid)
 
-compiled_resolved_hits |>
-    inner_join(par_bim_snps) |>
-    select(-c(strand, chr_no, cm, snp_pos, alt))
-
 # 
 unresolved_hits <- snps_flanks[!snps_flanks$Locus_Name %in% compiled_resolved_hits$Locus_Name,]
 
-# get resolved hits in PAR
-resolved_PAR_snps <- compiled_resolved_hits |>
-    filter(Locus_Name %in% par_snps$Locus_Name)
-
-# get resolved hits in PAR
-resolved_PAR_snp_ranges <- resolved_PAR_snps |>
+# get sequence of resolved snps
+compiled_resolved_hits_ranges <- compiled_resolved_hits |>
     dplyr::mutate(start = snp_pos) |>
-    mutate(width = 1) |>
-    plyranges::as_granges()
-resolved_PAR_snp_seq <- BSgenome::getSeq(deer_seq, resolved_PAR_snp_ranges)
-names(resolved_PAR_snp_seq) <- resolved_PAR_snp_ranges$Locus_Name
+    dplyr::select(Locus_Name, seqnames, start, strand) |>
+    dplyr::mutate(width = 1) |>
+    as_granges()
+resolved_snp_seq <- BSgenome::getSeq(deer_seq, compiled_resolved_hits_ranges)
+names(resolved_snp_seq) <- compiled_resolved_hits_ranges$Locus_Name
 
-# combined all data together (i.e. data fom PLINK .bim, 3_DeerSequences.txt and the sequence found using BLAST)
-all_data_combined <- all_bim_snps |>
-    inner_join(
-        all_snps_from_snp_data,
-        by = "Locus_Name") |>
-    inner_join(
-        tibble(actual_seq = as.character(resolved_PAR_snp_seq), Locus_Name = names(resolved_PAR_snp_seq)),
-        by = "Locus_Name") |>
-    inner_join(
-        resolved_PAR_snps) |>
-    dplyr::select(-c(cm, chr_no))
-all_data_combined |>
-    write_tsv("/mnt/loki/johnston/rumdeer/james/01_par_check/outputs/PAR_search/combined_output.tsv")
+tibble(actual_seq = as.character(resolved_snp_seq), Locus_Name = names(resolved_snp_seq), strand = as.character(strand(compiled_resolved_hits_ranges))) |>
+    inner_join(all_snps_from_snp_data) |>
+    filter((actual_seq == snp_ref | actual_seq == snp_alt)) |>
+    inner_join(all_bim_snps)
+
+# # get resolved hits in PAR
+# resolved_PAR_snps <- compiled_resolved_hits |>
+#     filter(Locus_Name %in% par_snps$Locus_Name)
+
+# # get resolved hits in PAR
+# resolved_PAR_snp_ranges <- resolved_PAR_snps |>
+#     dplyr::mutate(start = snp_pos) |>
+#     mutate(width = 1) |>
+#     plyranges::as_granges()
+# resolved_PAR_snp_seq <- BSgenome::getSeq(deer_seq, resolved_PAR_snp_ranges)
+# names(resolved_PAR_snp_seq) <- resolved_PAR_snp_ranges$Locus_Name
+
+# # combined all data together (i.e. data fom PLINK .bim, 3_DeerSequences.txt and the sequence found using BLAST)
+# all_data_combined <- all_bim_snps |>
+#     inner_join(
+#         all_snps_from_snp_data,
+#         by = "Locus_Name") |>
+#     inner_join(
+#         tibble(actual_seq = as.character(resolved_PAR_snp_seq), Locus_Name = names(resolved_PAR_snp_seq)),
+#         by = "Locus_Name") |>
+#     inner_join(
+#         resolved_PAR_snps) |>
+#     dplyr::select(-c(cm, chr_no))
+# all_data_combined |>
+#     write_tsv("/mnt/loki/johnston/rumdeer/james/01_par_check/outputs/PAR_search/combined_output.tsv")
