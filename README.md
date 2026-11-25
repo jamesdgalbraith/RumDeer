@@ -1,4 +1,4 @@
-# RumDeer
+# Rum Deer
 Guide to calling variants from whole genome sequencing using the Rum Deer dataset as an example. The three steps outlined are what I used for the Soay sheep, reindeer, and sparrows.
 
 ## 01 Pseudo-autosomal region checks
@@ -7,7 +7,7 @@ In chromosomal assemblies which contain both sex chromosomes it's necessary to c
 As reference genome papers might not include details about the PAR, we'd first check if it's on both sex chromosomes by aligning them to each other using [D-GENIES](https://dgenies.toulouse.inra.fr/) (run locally). The reindeer and sheep variant calling has more detailed descriptions of this. In the sheep both sex chromosomes contained the PAR, while in the reindeer only the X did.
 
 ### Approach 1
-If the PAR's not present on both sex chromosomes, it's normally present on the Z/X. Examining read coverage/depth across the Z/X in a male/female (respecitvely) enables us to determine where the PAR begins/ends. In the case of the red deer, the reference genome doesn't contain the Y chromosome, so this step will also help us determine if the PAR is on the X (I expect it will be).
+If the PAR's not present on both sex chromosomes, it's normally present on the Z/X. Examining read coverage/depth across the Z/X in a male/female (respectively) enables us to determine where the PAR begins/ends. In the case of the red deer, the reference genome doesn't contain the Y chromosome, so this step will also help us determine if the PAR is on the X (I expect it will be).
 
 To determine the rough boundaries of the PAR we'll look at read coverage of a male across the X chromosome, calculating read depth across the smallest autosome and X chromosome with `samtools depth` and finding where coverage drops to half on the X chromosome and heterozygous SNPs are no longer present.
 
@@ -33,6 +33,3 @@ If each sample only had one pair of fastq files we could skip step 3. If we had 
 
 ## 03 Variant calling
 We are performing calling using the bcftools package. For variant calling we create a 'pileup' using `bcftools mpileup` which is piped into `bcftools call` for variant calling. By default `bcftools` treats all chromosomes as diploid in all samples. To change this for the PAR and the mitochondria we need to provide a `--ploidy-file` which the coordinates of chromosomes where the ploidy deviates from 2, what the ploidy is acrosss that region, and which sex it deviates in; and a `--samples-file` outlining the sex of each sample. Seeing as we're calling each chromosome in a seperate script we don't need to provide these when calling the autosomes.
-
-## Additional notes
-To ensure that the named SNPs in the PLINK data and original manifest are the same (e.g. both are A → G), and to find their position in the current assembly, I used this script: [par_snps_flank.R](`01_par_check/scripts/par_snps_flank.R`). I will check to see if we've found the same SNPs in our own variant calling data. It appears the SNPs in the PLINK data and the original manifest don't match at first glance as they many are the reverse complment of the other. For example, some SNPs positions which are A+G in one format are T+C in the other. Manually looking through I didn't find any positions where the pair of nucleotides in each format weren't either the same or the reverse complement (e.g. there were no positions where one format had A+G and the other had A+C).
